@@ -25,6 +25,8 @@
 
 #define IR_RECEIVE_PIN 5
 
+#define BUZZER_PIN 2
+
 #define IR_BUTTON_0 22
 #define IR_BUTTON_1 12
 #define IR_BUTTON_2 24
@@ -46,12 +48,6 @@ LiquidCrystal lcd(LCD_RS_PIN, LCD_E_PIN, LCD_D4_PIN,
 
 unsigned long lastTimeLEDMatrixUpdated = millis();
 unsigned long debounceDelayLEDMatrix = 1000;
-
-unsigned long lastTimeIRButtonPressed = millis();
-unsigned long debounceDelayIRButton = 1000;
-
-unsigned long lastTimeNewTimerButtonPressed = millis();
-unsigned long debounceDelayNewTimerButton = 3000;
 
 // Modes:
 // 0 -> Menu
@@ -86,77 +82,80 @@ void printOnLCD(String text, int cursorLine) {
 }
 
 void resetTimer() {
-  printOnLCD("Reset", 0);
+  // printOnLCD("Reset", 0);
   isPlaying = false;
   timerMinutes = settingTimerMinutes;
   timerSeconds = settingTimerSeconds;
 }
 
 void enterNewTime(int newMinutes) {
+  String newMinutesStr = String(newMinutes);
+  
+  // Update settings buffer
   if (newMinutesBuffer.length() <= 2) {
-    newMinutesBuffer = newMinutesBuffer + String(newMinutes);
-    String test = newMinutesBuffer;
-    Serial.println(newMinutesBuffer.length());
+    newMinutesBuffer = newMinutesBuffer + newMinutesStr;
   } else {
-    Serial.println("INSERT");
-    newMinutesBuffer = String(newMinutes);
+    newMinutesBuffer = newMinutesStr;
   }
   printOnLCD(newMinutesBuffer, 1);
+
+  // Update actual settings
+  int newMinutesBufferSize = newMinutesBuffer.length();
+  if (newMinutesBufferSize == 2) {
+    settingTimerMinutes = newMinutesBuffer.toInt();
+
+    // Reset
+    isSettingUp = false;
+    resetTimer();
+    mode = 2;
+  }
 }
 
 void handleIRCommand(long command) {
   String commandStr = String(command);
+  Serial.println("mode");
+  Serial.println(mode);
+  Serial.println(command);
 
-  if (mode == 1 && isSettingUp) {
-    // switch(command) {
-    //   case IR_BUTTON_FUNC_STOP:
-    //     isSettingUp = false;
-    //     break;
-    // }
-
-    int newMinutesBufferSize = newMinutesBuffer.length();
-    if (newMinutesBufferSize < 2) {
-      switch (command) {
-        case IR_BUTTON_0:
-          enterNewTime(0);
-          break;
-        case IR_BUTTON_1:
-          enterNewTime(1);
-          break;
-        case IR_BUTTON_2:
-          enterNewTime(2);
-          break;
-        case IR_BUTTON_3:
-          enterNewTime(3);
-          break;
-        case IR_BUTTON_4:
-          enterNewTime(4);
-          break;
-        case IR_BUTTON_5:
-          enterNewTime(5);
-          break;
-        case IR_BUTTON_6:
-          enterNewTime(6);
-          break;
-        case IR_BUTTON_7:
-          enterNewTime(7);
-          break;
-        case IR_BUTTON_8:
-          enterNewTime(8);
-          break;
-        case IR_BUTTON_9:
-          enterNewTime(9);
-          break;
-      }
-    } else if (newMinutesBufferSize == 2) {
-      Serial.println(newMinutesBuffer);
-      settingTimerMinutes = newMinutesBuffer.toInt();
-
-      // Reset
-      isSettingUp = false;
-      resetTimer();
-    } else {
-      newMinutesBuffer = "";
+  if (command == IR_BUTTON_FUNC_RESET) {
+    resetTimer();
+  } else if (mode == 1 && isSettingUp) {
+    Serial.println("SETUP");
+    switch (command) {
+      case IR_BUTTON_0:
+        enterNewTime(0);
+        break;
+      case IR_BUTTON_1:
+        enterNewTime(1);
+        break;
+      case IR_BUTTON_2:
+        enterNewTime(2);
+        break;
+      case IR_BUTTON_3:
+        enterNewTime(3);
+        break;
+      case IR_BUTTON_4:
+        enterNewTime(4);
+        break;
+      case IR_BUTTON_5:
+        enterNewTime(5);
+        break;
+      case IR_BUTTON_6:
+        enterNewTime(6);
+        break;
+      case IR_BUTTON_7:
+        enterNewTime(7);
+        break;
+      case IR_BUTTON_8:
+        enterNewTime(8);
+        break;
+      case IR_BUTTON_9:
+        enterNewTime(9);
+        break;
+      case IR_BUTTON_FUNC_STOP:
+        isSettingUp = false;
+        mode = 2;
+        break;
     }
 
   } else {
@@ -175,12 +174,13 @@ void handleIRCommand(long command) {
           newMinutesBuffer = "";
           isSettingUp = true;
         } else {
-          printOnLCD("Countdown PLAY", 0);
+          // printOnLCD("Countdown PLAY", 0);
+          tone(BUZZER_PIN, 1000, 300);
           isPlaying = true;
         }
         break;
       case IR_BUTTON_FUNC_STOP:
-        printOnLCD("Countdown PAUSE", 0);
+        // printOnLCD("Countdown PAUSE", 0);
         isPlaying = false;
         break;
       case IR_BUTTON_FUNC_RESET:
@@ -213,29 +213,35 @@ void countdownSettings() {
 
 // Mode 2: Countdown
 void countdown() {
+  // Pad timer units
   String minutesStr = String(timerMinutes);
   String secondsStr = String(timerSeconds);
 
   if (timerMinutes < 10) {
-    minutesStr = "0" + String(timerMinutes);
+    minutesStr = "0" + minutesStr;
   }
   if (timerSeconds < 10) {
-    secondsStr = "0" + String(timerSeconds);
+    secondsStr = "0" + secondsStr;
   }
-
   String timerText = minutesStr + ":" + secondsStr;
   
+  // Display
   ledMatrix.print(timerText);
-
   printOnLCD("Countdown:", 0);
   printOnLCD(timerText, 1);
 
+  // Countdown
   if (isPlaying == true) {
-    // Serial.println("PLAYING");
+    // WARNING!
+    if (timerMinutes == 0 && timerSeconds <= 5) {
+      tone(BUZZER_PIN, 1000, 300);
+    }
 
     if (timerSeconds == 0 && timerMinutes == 0) {
       // Stop
       isPlaying = false;
+      tone(BUZZER_PIN, 1000, 2000);
+      // mode = 0;
     } else if (timerSeconds == 0 && timerMinutes > 0) {
       timerMinutes--;
       timerSeconds = 59;
@@ -251,6 +257,8 @@ void setup() {
   // Reset mode
   mode = 0;
 
+  pinMode(BUZZER_PIN, OUTPUT);
+
   IrReceiver.begin(IR_RECEIVE_PIN);
   
   lcd.begin(16, 2);
@@ -261,9 +269,11 @@ void setup() {
   ledMatrix.displayClear();
 
   ledMatrix.setTextAlignment(PA_CENTER);
-  ledMatrix.print("Loading");
-  delay(1000);
+  // ledMatrix.print("Loading");
+  // delay(1000);
   ledMatrix.print("CY");
+
+  // tone(BUZZER_PIN, 1000, 1000);
 }
 
 void loop() {
