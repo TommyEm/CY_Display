@@ -6,6 +6,7 @@
  * Tutorial page: https://arduinogetstarted.com/tutorials/arduino-led-matrix
  */
 
+#define IR_USE_AVR_TIMER1 // Change to Timer1 for IR, because passive buzzer already uses Timer2
 #include <IRremote.h>
 #include <LiquidCrystal.h>
 #include <MD_Parola.h>
@@ -37,7 +38,7 @@
 #define IR_BUTTON_7 66
 #define IR_BUTTON_8 82
 #define IR_BUTTON_9 74
-#define IR_BUTTON_FUNC_PLAY_PAUSE 64
+#define IR_BUTTON_FUNC_PLAY 64
 #define IR_BUTTON_FUNC_STOP 71
 #define IR_BUTTON_FUNC_RESET 69
 
@@ -46,8 +47,7 @@ MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
 LiquidCrystal lcd(LCD_RS_PIN, LCD_E_PIN, LCD_D4_PIN,
                   LCD_D5_PIN, LCD_D6_PIN, LCD_D7_PIN);
 
-unsigned long lastTimeLEDMatrixUpdated = millis();
-unsigned long debounceDelayLEDMatrix = 1000;
+unsigned long lastSecondTick = millis();
 
 // Modes:
 // 0 -> Menu
@@ -113,13 +113,10 @@ void enterNewTime(int newMinutes) {
 
 void handleIRCommand(long command) {
   String commandStr = String(command);
-  Serial.println("mode");
-  Serial.println(mode);
-  Serial.println(command);
+  Serial.println("mode: " + String(mode));
+  Serial.println("command: " + String(command));
 
-  if (command == IR_BUTTON_FUNC_RESET) {
-    resetTimer();
-  } else if (mode == 1 && isSettingUp) {
+  if (mode == 1 && isSettingUp) {
     Serial.println("SETUP");
     switch (command) {
       case IR_BUTTON_0:
@@ -156,6 +153,9 @@ void handleIRCommand(long command) {
         isSettingUp = false;
         mode = 2;
         break;
+      case IR_BUTTON_FUNC_RESET:
+        resetTimer();
+        break;
     }
 
   } else {
@@ -169,19 +169,18 @@ void handleIRCommand(long command) {
       case IR_BUTTON_2:
         mode = 2;
         break;
-      case IR_BUTTON_FUNC_PLAY_PAUSE:
+      case IR_BUTTON_FUNC_PLAY:
         if (mode == 1) {
           newMinutesBuffer = "";
           isSettingUp = true;
-        } else {
-          // printOnLCD("Countdown PLAY", 0);
+        } else if (mode == 2) {
+          isPlaying = !isPlaying;
           tone(BUZZER_PIN, 1000, 300);
-          isPlaying = true;
         }
         break;
       case IR_BUTTON_FUNC_STOP:
-        // printOnLCD("Countdown PAUSE", 0);
         isPlaying = false;
+        tone(BUZZER_PIN, 1000, 300);
         break;
       case IR_BUTTON_FUNC_RESET:
         resetTimer();
@@ -194,20 +193,18 @@ void handleIRCommand(long command) {
 
 // Mode 0: Menu
 void menu() {
-  printOnLCD("CY_BORG menu", 0);
+  printOnLCD("CY menu", 0);
   printOnLCD("Modes: 0 1 2", 1);
 }
 
 // Mode 2: Countdown settings
-void countdownSettings() {
-  printOnLCD("Timer settings", 0);
-  printOnLCD("Press play", 1);
-
+void settings() {
   if (isSettingUp) {
     printOnLCD("Enter time:", 0);
     printOnLCD(newMinutesBuffer, 1);
-
-    // The commands are handled in handleIRCommand
+  } else {
+    printOnLCD("Timer settings", 0);
+    printOnLCD("Press play", 1);
   }
 }
 
@@ -229,25 +226,24 @@ void countdown() {
   ledMatrix.print(timerText);
   printOnLCD("Countdown:", 0);
   printOnLCD(timerText, 1);
+}
 
-  // Countdown
-  if (isPlaying == true) {
-    // WARNING!
-    if (timerMinutes == 0 && timerSeconds <= 5) {
-      tone(BUZZER_PIN, 1000, 300);
-    }
+void updateCountdown() {
+  // WARNING!
+  if (timerMinutes == 0 && timerSeconds <= 5) {
+    tone(BUZZER_PIN, 1000, 300);
+  }
 
-    if (timerSeconds == 0 && timerMinutes == 0) {
-      // Stop
-      isPlaying = false;
-      tone(BUZZER_PIN, 1000, 2000);
-      // mode = 0;
-    } else if (timerSeconds == 0 && timerMinutes > 0) {
-      timerMinutes--;
-      timerSeconds = 59;
-    } else {
-      timerSeconds--;
-    }
+  if (timerSeconds == 0 && timerMinutes == 0) {
+    // Stop
+    isPlaying = false;
+    tone(BUZZER_PIN, 1000, 2000);
+    return;
+  } else if (timerSeconds == 0 && timerMinutes > 0) {
+    timerMinutes--;
+    timerSeconds = 59;
+  } else {
+    timerSeconds--;
   }
 }
 
@@ -269,16 +265,10 @@ void setup() {
   ledMatrix.displayClear();
 
   ledMatrix.setTextAlignment(PA_CENTER);
-  // ledMatrix.print("Loading");
-  // delay(1000);
-  ledMatrix.print("CY");
-
-  // tone(BUZZER_PIN, 1000, 1000);
+  ledMatrix.print("> CY <");
 }
 
 void loop() {
-  unsigned long timeNow = millis();
-
   // ledMatrix.setTextAlignment(PA_LEFT);
   // ledMatrix.print("Left"); // display text
 
@@ -295,25 +285,35 @@ void loop() {
   // ledMatrix.setInvert(false);
   // ledMatrix.print(1234); // display number
 
+  if (IrReceiver.decode()) {
+    // Ignore repeat frames
+    bool isRepeat = IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT;
 
-  if (timeNow - lastTimeLEDMatrixUpdated > debounceDelayLEDMatrix) {
-    lastTimeLEDMatrixUpdated = timeNow;
-    if (IrReceiver.decode()) {
-      IrReceiver.resume();
-      int command = IrReceiver.decodedIRData.command;
+    int command = IrReceiver.decodedIRData.command;
+
+    if (!isRepeat) {
       handleIRCommand(command);
     }
+
+    IrReceiver.resume();
+  }
+
+  unsigned long timeNow = millis();
+
+  if (isPlaying && timeNow - lastSecondTick >= 1000) {
+    lastSecondTick = timeNow;
+    updateCountdown();
+  }
   
-    switch (mode) {
-      case 1:
-        countdownSettings();
-        break;
-      case 2:
-        countdown();
-        break;
-      case 0:
-      default:
-        menu();
-    }
+  switch (mode) {
+    case 0:
+      menu();
+      break;
+    case 1:
+      settings();
+      break;
+    case 2:
+      countdown();
+      break;
   }
 }
