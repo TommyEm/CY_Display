@@ -1,9 +1,5 @@
 /*
- * Created by ArduinoGetStarted.com
- *
- * This example code is in the public domain
- *
- * Tutorial page: https://arduinogetstarted.com/tutorials/arduino-led-matrix
+ * Countdown app for Arduino Uno
  */
 
 #define IR_USE_AVR_TIMER1 // Change to Timer1 for IR, because passive buzzer already uses Timer2
@@ -269,22 +265,6 @@ void setup() {
 }
 
 void loop() {
-  // ledMatrix.setTextAlignment(PA_LEFT);
-  // ledMatrix.print("Left"); // display text
-
-  // ledMatrix.setTextAlignment(PA_CENTER);
-  // ledMatrix.print("Center"); // display text
-
-  // ledMatrix.setTextAlignment(PA_RIGHT);
-  // ledMatrix.print("Right"); // display text
-
-  // ledMatrix.setTextAlignment(PA_CENTER);
-  // ledMatrix.setInvert(true);
-  // ledMatrix.print("Invert"); // display text inverted
-
-  // ledMatrix.setInvert(false);
-  // ledMatrix.print(1234); // display number
-
   if (IrReceiver.decode()) {
     // Ignore repeat frames
     bool isRepeat = IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT;
