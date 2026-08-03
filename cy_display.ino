@@ -59,7 +59,8 @@ bool isSettingUp = false;
 bool isPlaying = false;
 int timerMinutes = settingTimerMinutes;
 int timerSeconds = settingTimerSeconds;
-String newTimeBuffer;
+String newMinutesBuffer;
+String newSecondsBuffer;
 
 
 void printOnLCD(String text, int cursorLine) {
@@ -87,18 +88,23 @@ void resetTimer() {
 void enterNewTime(int newDigit) {
   String newDigitStr = String(newDigit);
   
-  // Fill the buffer
-  if (newTimeBuffer.length() <= 2) {
-    newTimeBuffer = newTimeBuffer + newDigitStr;
-  } else {
-    newTimeBuffer = newDigitStr;
+  if (newMinutesBuffer.length() < 2) {
+    // Fill the minutes buffer
+    newMinutesBuffer = newMinutesBuffer + newDigitStr;
+    printOnLCD(newMinutesBuffer, 1);
+  } else if (newMinutesBuffer.length() == 2 && newSecondsBuffer.length() < 2) {
+    // After minutes, fill the seconds buffer
+    if ((newSecondsBuffer.length() == 0 && newDigit < 6) || newSecondsBuffer.length() == 1) {
+      // Accept only up to 5 for decimal
+      newSecondsBuffer = newSecondsBuffer + newDigitStr;
+    }
+    printOnLCD(newMinutesBuffer + ":" + newSecondsBuffer, 1);
   }
-  printOnLCD(newTimeBuffer, 1);
 
   // Update actual settings
-  int newTimeBufferSize = newTimeBuffer.length();
-  if (newTimeBufferSize == 2) {
-    settingTimerMinutes = newTimeBuffer.toInt();
+  if (newMinutesBuffer.length() == 2 && newSecondsBuffer.length() == 2) {
+    settingTimerMinutes = newMinutesBuffer.toInt();
+    settingTimerSeconds = newSecondsBuffer.toInt();
 
     // Reset
     isSettingUp = false;
@@ -168,7 +174,8 @@ void handleIRCommand(long command) {
         break;
       case IR_BUTTON_FUNC_PLAY:
         if (mode == 1) {
-          newTimeBuffer = "";
+          newMinutesBuffer = "";
+          newSecondsBuffer = "";
           isSettingUp = true;
         } else if (mode == 2) {
           isPlaying = !isPlaying;
@@ -198,7 +205,10 @@ void menu() {
 void settings() {
   if (isSettingUp) {
     printOnLCD("Enter time:", 0);
-    printOnLCD(newTimeBuffer, 1);
+    if (newMinutesBuffer.length() == 0 && newSecondsBuffer.length() == 0) {
+      // Init LCD but only when input hasn't started, otherwise interference can occur
+      printOnLCD(newMinutesBuffer, 1);
+    }
   } else {
     printOnLCD("Timer settings", 0);
     printOnLCD("Press play", 1);
