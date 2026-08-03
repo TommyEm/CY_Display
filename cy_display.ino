@@ -59,7 +59,7 @@ bool isSettingUp = false;
 bool isPlaying = false;
 int timerMinutes = settingTimerMinutes;
 int timerSeconds = settingTimerSeconds;
-String newMinutesBuffer;
+String newTimeBuffer;
 
 
 void printOnLCD(String text, int cursorLine) {
@@ -84,21 +84,21 @@ void resetTimer() {
   timerSeconds = settingTimerSeconds;
 }
 
-void enterNewTime(int newMinutes) {
-  String newMinutesStr = String(newMinutes);
+void enterNewTime(int newDigit) {
+  String newDigitStr = String(newDigit);
   
-  // Update settings buffer
-  if (newMinutesBuffer.length() <= 2) {
-    newMinutesBuffer = newMinutesBuffer + newMinutesStr;
+  // Fill the buffer
+  if (newTimeBuffer.length() <= 2) {
+    newTimeBuffer = newTimeBuffer + newDigitStr;
   } else {
-    newMinutesBuffer = newMinutesStr;
+    newTimeBuffer = newDigitStr;
   }
-  printOnLCD(newMinutesBuffer, 1);
+  printOnLCD(newTimeBuffer, 1);
 
   // Update actual settings
-  int newMinutesBufferSize = newMinutesBuffer.length();
-  if (newMinutesBufferSize == 2) {
-    settingTimerMinutes = newMinutesBuffer.toInt();
+  int newTimeBufferSize = newTimeBuffer.length();
+  if (newTimeBufferSize == 2) {
+    settingTimerMinutes = newTimeBuffer.toInt();
 
     // Reset
     isSettingUp = false;
@@ -114,6 +114,7 @@ void handleIRCommand(long command) {
 
   if (mode == 1 && isSettingUp) {
     Serial.println("SETUP");
+    settingTimerSeconds = 0;
     switch (command) {
       case IR_BUTTON_0:
         enterNewTime(0);
@@ -167,7 +168,7 @@ void handleIRCommand(long command) {
         break;
       case IR_BUTTON_FUNC_PLAY:
         if (mode == 1) {
-          newMinutesBuffer = "";
+          newTimeBuffer = "";
           isSettingUp = true;
         } else if (mode == 2) {
           isPlaying = !isPlaying;
@@ -197,7 +198,7 @@ void menu() {
 void settings() {
   if (isSettingUp) {
     printOnLCD("Enter time:", 0);
-    printOnLCD(newMinutesBuffer, 1);
+    printOnLCD(newTimeBuffer, 1);
   } else {
     printOnLCD("Timer settings", 0);
     printOnLCD("Press play", 1);
