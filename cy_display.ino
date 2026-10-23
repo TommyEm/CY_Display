@@ -45,6 +45,8 @@ LiquidCrystal lcd(LCD_RS_PIN, LCD_E_PIN, LCD_D4_PIN,
 
 unsigned long lastSecondTick = millis();
 
+bool needsRedraw = true;
+
 // Modes:
 // 0 -> Menu
 // 1 -> Countdown config
@@ -88,17 +90,18 @@ void resetTimer() {
 void enterNewTime(int newDigit) {
   String newDigitStr = String(newDigit);
   
+  Serial.println(newSecondsBuffer.length());
   if (newMinutesBuffer.length() < 2) {
     // Fill the minutes buffer
-    newMinutesBuffer = newMinutesBuffer + newDigitStr;
-    printOnLCD(newMinutesBuffer, 1);
-  } else if (newMinutesBuffer.length() == 2 && newSecondsBuffer.length() < 2) {
+    newMinutesBuffer += newDigitStr;
+  } else if (newSecondsBuffer.length() < 2) {
     // After minutes, fill the seconds buffer
-    if ((newSecondsBuffer.length() == 0 && newDigit < 6) || newSecondsBuffer.length() == 1) {
+    if (newSecondsBuffer.length() == 0 && newDigit < 6) {
       // Accept only up to 5 for decimal
-      newSecondsBuffer = newSecondsBuffer + newDigitStr;
+      newSecondsBuffer += newDigitStr;
+    } else {
+      newSecondsBuffer += newDigitStr;
     }
-    printOnLCD(newMinutesBuffer + ":" + newSecondsBuffer, 1);
   }
 
   // Update actual settings
@@ -205,10 +208,12 @@ void menu() {
 void settings() {
   if (isSettingUp) {
     printOnLCD("Enter time:", 0);
-    if (newMinutesBuffer.length() == 0 && newSecondsBuffer.length() == 0) {
-      // Init LCD but only when input hasn't started, otherwise interference can occur
-      printOnLCD(newMinutesBuffer, 1);
+    String input = newMinutesBuffer;
+    if (newMinutesBuffer.length() == 2) {
+      input += ":";
+      input += newSecondsBuffer;
     }
+    printOnLCD(input, 1);
   } else {
     printOnLCD("Timer settings", 0);
     printOnLCD("Press play", 1);
@@ -280,10 +285,10 @@ void loop() {
     // Ignore repeat frames
     bool isRepeat = IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT;
 
-    int command = IrReceiver.decodedIRData.command;
-
     if (!isRepeat) {
+      int command = IrReceiver.decodedIRData.command;
       handleIRCommand(command);
+      needsRedraw = true;
     }
 
     IrReceiver.resume();
@@ -294,7 +299,13 @@ void loop() {
   if (isPlaying && timeNow - lastSecondTick >= 1000) {
     lastSecondTick = timeNow;
     updateCountdown();
+    needsRedraw = true; // The timer value changed
   }
+
+  if (!needsRedraw) {
+    return; // Nothing changed, skip all drawing
+  }
+  needsRedraw = false;
   
   switch (mode) {
     case 0:
