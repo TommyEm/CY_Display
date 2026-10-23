@@ -201,6 +201,7 @@ void handleIRCommand(long command) {
 void menu() {
   printOnLCD("CY menu", 0);
   printOnLCD("Modes: 0 1 2", 1);
+  ledMatrix.print("> CY <");
 }
 
 // Mode 1: Countdown settings
