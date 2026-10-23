@@ -90,7 +90,6 @@ void resetTimer() {
 void enterNewTime(int newDigit) {
   String newDigitStr = String(newDigit);
   
-  Serial.println(newSecondsBuffer.length());
   if (newMinutesBuffer.length() < 2) {
     // Fill the minutes buffer
     newMinutesBuffer += newDigitStr;
@@ -99,7 +98,7 @@ void enterNewTime(int newDigit) {
     if (newSecondsBuffer.length() == 0 && newDigit < 6) {
       // Accept only up to 5 for decimal
       newSecondsBuffer += newDigitStr;
-    } else {
+    } else if (newSecondsBuffer.length() == 1) {
       newSecondsBuffer += newDigitStr;
     }
   }
