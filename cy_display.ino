@@ -203,7 +203,7 @@ void menu() {
   printOnLCD("Modes: 0 1 2", 1);
 }
 
-// Mode 2: Countdown settings
+// Mode 1: Countdown settings
 void settings() {
   if (isSettingUp) {
     printOnLCD("Enter time:", 0);
